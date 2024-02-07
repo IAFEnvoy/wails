@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/samber/lo"
 	"github.com/wailsapp/wails/v2/internal/project"
@@ -17,11 +16,13 @@ type Dev struct {
 	BuildCommon
 
 	AssetDir             string `flag:"assetdir" description:"Serve assets from the given directory instead of using the provided asset FS"`
+	Platform             string `flag:"platform" description:"Platform to target"`
 	Extensions           string `flag:"e" description:"Extensions to trigger rebuilds (comma separated) eg go"`
 	ReloadDirs           string `flag:"reloaddirs" description:"Additional directories to trigger reloads (comma separated)"`
 	Browser              bool   `flag:"browser" description:"Open the application in a browser"`
 	NoReload             bool   `flag:"noreload" description:"Disable reload on asset change"`
 	NoColour             bool   `flag:"nocolor" description:"Disable colour in output"`
+	NoGoRebuild          bool   `flag:"nogorebuild" description:"Disable automatic rebuilding on backend file changes/additions"`
 	WailsJSDir           string `flag:"wailsjsdir" description:"Directory to generate the Wails JS modules"`
 	LogLevel             string `flag:"loglevel" description:"LogLevel to use - Trace, Debug, Info, Warning, Error)"`
 	ForceBuild           bool   `flag:"f" description:"Force build of application"`
@@ -37,16 +38,18 @@ type Dev struct {
 }
 
 func (*Dev) Default() *Dev {
+	target := defaultTarget()
 	result := &Dev{
 		Extensions: "go",
 		Debounce:   100,
+		Platform:   target.Platform,
 	}
+
 	result.BuildCommon = result.BuildCommon.Default()
 	return result
 }
 
 func (d *Dev) Process() error {
-
 	var err error
 	err = d.loadAndMergeProjectConfig()
 	if err != nil {
@@ -112,18 +115,19 @@ func (d *Dev) loadAndMergeProjectConfig() error {
 	}
 
 	return nil
-
 }
 
 // GenerateBuildOptions creates a build.Options using the flags
 func (d *Dev) GenerateBuildOptions() *build.Options {
+	targets := parseTargets(d.Platform)
+
 	result := &build.Options{
 		OutputType:     "dev",
 		Mode:           build.Dev,
 		Devtools:       true,
-		Arch:           runtime.GOARCH,
+		Arch:           targets[0].Arch,
 		Pack:           true,
-		Platform:       runtime.GOOS,
+		Platform:       targets[0].Platform,
 		LDFlags:        d.LdFlags,
 		Compiler:       d.Compiler,
 		ForceBuild:     d.ForceBuild,
